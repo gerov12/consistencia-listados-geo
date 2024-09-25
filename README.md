@@ -17,7 +17,7 @@ cd nombre_carpeta
 
 (Opcional) Crear un entorno virtual de Python para evitar instalar las dependencias de forma global en su equipo
 ```
-python -m ./venv
+python -m venv ./venv
 ```  
 
 **Instalar dependencias:**
