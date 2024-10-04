@@ -1,8 +1,8 @@
 import pandas as pd
 import numpy as np
-from tkinter import Tk
-from tkinter import filedialog
+from tkinter import Tk, filedialog, messagebox
 import os
+import sys
 import argparse
 
 # VER SI ESTOY O NO EN MODO VERBOSE
@@ -19,22 +19,31 @@ test = args.test
 
 # Función para seleccionar el archivo y verificar el formato
 def seleccionar_archivo(numero_documento):
-    # Ocultar la ventana principal de Tkinter
-    root = Tk()
-    root.withdraw()
+    while True:
+        # Ocultar la ventana principal de Tkinter
+        root = Tk()
+        root.withdraw()
 
-    # Abrir el cuadro de diálogo para seleccionar un archivo
-    archivo_seleccionado = filedialog.askopenfilename(
-        title="Seleccionar archivo " + str(numero_documento),
-        filetypes=[("Archivos Excel", "*.xls *.xlsx")]
-    )
+        # Abrir el cuadro de diálogo para seleccionar un archivo
+        archivo_seleccionado = filedialog.askopenfilename(
+            title="Seleccionar archivo " + str(numero_documento),
+            filetypes=[("Archivos Excel", "*.xls *.xlsx")]
+        )
 
-    # Verificar si el archivo es xls o xlsx
-    if archivo_seleccionado and archivo_seleccionado.endswith(('.xls', '.xlsx')):
-        return archivo_seleccionado
-    else:
-        print("El archivo seleccionado no es válido. Debe ser un archivo .xls o .xlsx.")
-        return None
+        # Verificar si se seleccionó algún archivo
+        if not archivo_seleccionado:
+            print("No seleccionó ningún archivo.")
+        # Verificar si el archivo es xls o xlsx
+        elif not archivo_seleccionado.endswith(('.xls', '.xlsx')):
+            print("El archivo seleccionado no es válido. Debe ser un archivo .xls o .xlsx.")
+        else:
+            return archivo_seleccionado
+
+        # Preguntar si desea reintentar
+        reintentar = messagebox.askyesno("Reintentar", "¿Desea intentar seleccionar el archivo nuevamente?")
+        if not reintentar:
+            print("Saliendo del programa...")
+            sys.exit()  # Detener la ejecución del programa
     
 # Función para listar las columnas y pedir al usuario que seleccione cuál usar
 def seleccionar_columnas(dataframe, alias_archivo, nombres_opcionales):
@@ -153,27 +162,32 @@ if (titulo_documento_1 and titulo_documento_2):
 
 
         # Permitir al usuario seleccionar las columnas para cada archivo (y recupero los nombres opcionales proporcionados por el mismo)
-        documento_1 = seleccionar_columnas(documento_1, alias_documento_1, nombres_opcionales)
-        documento_2 = seleccionar_columnas(documento_2, alias_documento_2, nombres_opcionales)
+        documento_1_acotado = seleccionar_columnas(documento_1, alias_documento_1, nombres_opcionales)
+        documento_2_acotado = seleccionar_columnas(documento_2, alias_documento_2, nombres_opcionales)
 
         print("\nDocumentos finales con las columnas seleccionadas:")
-        print(f"{alias_documento_1}:\n", documento_1.head())
+        print(f"{alias_documento_1}:\n", documento_1_acotado.head())
         print("\n")	# Salto de línea
-        print(f"{alias_documento_2}:\n", documento_2.head())
+        print(f"{alias_documento_2}:\n", documento_2_acotado.head())
         print("\n")	# Salto de línea
 
-        confirmacion = input("¿Estás satisfecho con la selección de columnas? (si/no): ").lower()
+        confirmacion = input("¿Estás satisfecho con la selección de columnas? (si/no/salir): ").lower()
         print("\n")	# Salto de línea
-    print("Selección de columnas confirmada. Procesando archivos...")
-    print("\n")	# Salto de línea
+    if confirmacion != 'si':
+        print("Saliendo del programa...")
+        sys.exit()
+    else:
+        print("Selección de columnas confirmada. Procesando archivos...")
+        print("\n")	# Salto de línea
 else:
     print("No se pudo cargar uno o más archivos.")
-    print("\n")	# Salto de línea
+    print("Saliendo del programa...")
+    sys.exit()  # Detener la ejecución del programa
 
 # Cantidad de filas por archivo antes de simplificar
 print("LEYENDO DATOS...")
-print("Cantidad original de filas/elementos del documento 1 ->", documento_1.shape[0])
-print("Cantidad original de filas/elementos del documento 2 ->",documento_2.shape[0])
+print("Cantidad original de filas/elementos del documento 1 ->", documento_1_acotado.shape[0])
+print("Cantidad original de filas/elementos del documento 2 ->",documento_2_acotado.shape[0])
 print("\n")	# Salto de línea
 
 def process_missing_fields(df, num_missing_fields, num_fields):   
@@ -245,8 +259,8 @@ def simplify_df(df):
 
 
 print("SIMPLIFICANDO...")
-documento_1 = simplify_df(documento_1)
-documento_2 = simplify_df(documento_2)
+documento_1 = simplify_df(documento_1_acotado)
+documento_2 = simplify_df(documento_2_acotado)
 
 ## Crear las rutas para los archivos simplificados dentro de la carpeta de salida
 # Crear el nombre de la carpeta con los alias
