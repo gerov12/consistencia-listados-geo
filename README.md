@@ -17,7 +17,7 @@ cd nombre_carpeta
 
 (Recomendado) Crear un entorno virtual de Python para evitar instalar las dependencias de forma global en su equipo
 ```
-python -m venv ./venv
+py -m venv ./venv
 ```  
 
 **Instalar dependencias:**
@@ -37,7 +37,7 @@ pip install -r requirements.txt
 Asegurarse de estár dentro de la carpeta en la que clonó el directorio.  
 Abrir la consola de Git y ejecutar:
 ```
-python consistencia_listados.py
+py consistencia_listados.py
 ```
 
 *Recuerde que cada vez que abra una nueva consola para usar este script deberá activar el entorno virtual (venv) si es que lo creó*
