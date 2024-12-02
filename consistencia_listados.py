@@ -4,6 +4,7 @@ from tkinter import Tk, filedialog, messagebox
 import os
 import sys
 import argparse
+import re
 
 # VER SI ESTOY O NO EN MODO VERBOSE
 # Crear el parser de argumentos
@@ -23,12 +24,16 @@ def seleccionar_archivo(numero_documento):
         # Ocultar la ventana principal de Tkinter
         root = Tk()
         root.withdraw()
+        root.attributes('-topmost', True)  # Hace que la ventana sea siempre visible
 
         # Abrir el cuadro de diálogo para seleccionar un archivo
         archivo_seleccionado = filedialog.askopenfilename(
             title="Seleccionar archivo " + str(numero_documento),
             filetypes=[("Archivos Excel", "*.xls *.xlsx")]
         )
+
+        # Cerrar la ventana de Tkinter después de seleccionar el archivo
+        root.destroy()
 
         # Verificar si se seleccionó algún archivo
         if not archivo_seleccionado:
@@ -105,10 +110,71 @@ def seleccionar_columnas(dataframe, alias_archivo, nombres_opcionales):
     # Renombrar las columnas seleccionadas (y retorno tambien la lista de nombres opcionales para futuro uso)
     return dataframe[columnas_finales].rename(columns=columnas_renombradas)
 
+def procesar_consistencia_anterior(result_df, archivo_consistencia_anterior):
+    consistencia_anterior = pd.read_excel(archivo_consistencia_anterior, dtype=str)
+
+    if "Omitir" not in consistencia_anterior.columns or "Observaciones" not in consistencia_anterior.columns:
+        print("El archivo de consistencia anterior debe contener las columnas 'Omitir' y 'Observaciones'.")
+        print("No se actualizaron los resultados con el archivo de consistencia anterior.")
+        return result_df
+
+    if "Consistencia" not in consistencia_anterior.columns or "Consistencia" not in result_df.columns:
+        print("Ambos archivos deben tener una columna llamada 'Consistencia'.")
+        print("No se actualizaron los resultados con el archivo de consistencia anterior.")
+        return result_df
+
+    # Encontrar la posición de la columna "Consistencia"
+    index_consistencia_anterior = consistencia_anterior.columns.get_loc("Consistencia") + 1
+    index_consistencia_resultado = result_df.columns.get_loc("Consistencia") + 1
+
+    if index_consistencia_anterior != index_consistencia_resultado:
+        print("Las posiciones de la columna 'Consistencia' no coinciden entre los archivos (número distinto de columnas).")
+        print("No se actualizaron los resultados con el archivo de consistencia anterior.")
+        return result_df
+
+    # Filtrar filas relevantes
+    filas_relevantes = consistencia_anterior[
+        consistencia_anterior["Omitir"].notna() | consistencia_anterior["Observaciones"].notna()
+    ]
+
+    # Comparar las primeras 'n' columnas según la posición de "Consistencia"
+    n_columnas = index_consistencia_anterior
+    for _, fila in filas_relevantes.iterrows():
+        # Inicializar condición
+        condiciones = True
+
+        # Verifico qué filas del archivo de consistencia anterior coinciden con filas del resultado actual (en campos cod, loc y extras)
+        for i in range(n_columnas):
+            condiciones &= result_df.iloc[:, i] == fila.iloc[i]
+
+        if condiciones.any():
+            indices = result_df[condiciones].index
+            
+            # Verificar y actualizar "Consistencia"
+            if pd.notna(fila["Omitir"]) and fila["Omitir"].strip():
+                result_df.loc[indices, "Consistencia"] = fila["Omitir"]
+            
+            # Actualizar "Observaciones"
+            observaciones = fila["Observaciones"] if pd.notna(fila["Observaciones"]) and fila["Observaciones"].strip() else "Sin observaciones."
+            result_df.loc[indices, "Observaciones"] = observaciones
+
+    return result_df
+
+
 if not test:
     # Seleccionar y cargar los archivos
     titulo_documento_1 = seleccionar_archivo(1)
     titulo_documento_2 = seleccionar_archivo(2)
+
+    # Preguntar si se desea usar un archivo de consistencia anterior
+    usar_consistencia_anterior = input(
+        "¿Desea filtrar los resultados con algún archivo de consistencia anterior? "
+        "(Para omitir filas debe agregar la columna 'Omitir' al archivo de consistencia y ponerle como valor 'Si' a las filas que desee omitir, "
+        "además debe agregar la columna 'Observaciones' para anotar opcionalmente las observaciones de cada caso) [si/no]: "
+    ).strip().lower()
+
+    if usar_consistencia_anterior == "si":
+        archivo_consistencia_anterior = seleccionar_archivo("de consistencia anterior")
 else: 
     print("UTILIZANDO DATOS DE TESTING")
     #######################################################
@@ -134,6 +200,7 @@ else:
 # Verificar si se seleccionaron archivos válidos
 if (titulo_documento_1 and titulo_documento_2):
     if not test:
+        print("\n")
         # Pedir al usuario un alias para los archivos seleccionados
         alias_documento_1 = input(f"Ingresa un alias para el archivo '{titulo_documento_1}': ")
         alias_documento_2 = input(f"Ingresa un alias para el archivo '{titulo_documento_2}': ")
@@ -142,6 +209,7 @@ if (titulo_documento_1 and titulo_documento_2):
         documento_1 = pd.read_excel(titulo_documento_1, dtype=str)
         documento_2 = pd.read_excel(titulo_documento_2, dtype=str)
         print("Archivos cargados exitosamente.")
+        print("\n")
     else:
         alias_documento_1 = "Data1"
         alias_documento_2 = "Data2"
@@ -597,8 +665,14 @@ def verificar_consistencia(row):
 
 # Aplico la función para chequear consistencia de las filas
 result['Consistencia'] = result.apply(verificar_consistencia, axis=1)
+# Si elegí omitir filas con un archivo de consistencia anterior actualizo la columna consistencia según corresponda
+if usar_consistencia_anterior == "si":
+    print("Actualizando con archivo de consistencia anterior...")
+    result = procesar_consistencia_anterior(result, archivo_consistencia_anterior)
+
+# Calculo el porcentaje final de consistencia
 filas_finales = result.shape[0]
-total_consistentes = result[result['Consistencia'] == 'Sí'].shape[0]
+total_consistentes = result[result['Consistencia'].str.contains(r'^(sí|si)$', flags=re.IGNORECASE, na=False)].shape[0]
 porcentaje_consistencia = (total_consistentes / filas_finales) * 100
 print("\n")	# Salto de línea
 print(f"Filas resultantes: {filas_finales}")
